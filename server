@@ -1,0 +1,128 @@
+
+
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"net/http"
+	"github.com/elgs/gosqljson"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/gorilla/mux"
+)
+
+const(
+	categoriaSamarretas = "CATEGORIA = 'CAMISETA' || CATEGORIA = 'POLO' || CATEGORIA = 'CAMISA' || CATEGORIA = 'TOP' || CATEGORIA = 'T-SHIRT' || CATEGORIA = 'TEE SHIRT M/C' || CATEGORIA = 'TEE-SHIRT' || CATEGORIA = 'TEE SHIRT'"
+	categoriaJaquetes = "CATEGORIA = 'CHALECO' || CATEGORIA = 'CARDIGAN' || CATEGORIA = 'CHAQUETA' || CATEGORIA = 'TUNICA' || CATEGORIA = 'CAZADORA' || CATEGORIA = 'CARDIGAN TRICOT'"
+	categoriaJerseis = "CATEGORIA = 'SUDADERA' || CATEGORIA = 'JERSEY'"
+	categoriaPantalons = "CATEGORIA = 'PANTALON' || CATEGORIA = 'JEAN' || CATEGORIA = 'JEAN BLEACH' || CATEGORIA = 'JEAN COULEUR' || CATEGORIA = 'JEAN SLIM' || CATEGORIA = 'JEAN SUPER STRE' || CATEGORIA = 'PANTAL' || CATEGORIA = 'MALLAS' || CATEGORIA = 'CORSARIO' || CATEGORIA = 'BERMUDA'"
+	categoriaFaldilles = "CATEGORIA = 'SHORT' || CATEGORIA = 'ENAGUA' || CATEGORIA = 'FALDA'"
+	categoriaVestits = "CATEGORIA = 'VESTIDO' || CATEGORIA = 'MONO CORTO' || CATEGORIA = 'CONJUNTO LARGO' || CATEGORIA = 'CONJUNTO CORTO' || CATEGORIA = 'MONO VESTIDO' || CATEGORIA = 'PELELE' || CATEGORIA = 'PETO' || CATEGORIA = 'VESTIDO TIRANTES'"
+	categoriaBanyadors = "CATEGORIA = 'BANADOR BOXER' || CATEGORIA = 'BANADOR 1PIEZA' || CATEGORIA = 'BANADOR SLIP' || CATEGORIA = 'BIKINI'"
+	categoriaAccessoris = "CATEGORIA = 'PEUCOS' || CATEGORIA = 'GORRO' || CATEGORIA = 'CHEICH' || CATEGORIA = 'CALCETINES' || CATEGORIA = 'CHAPEAU' || CATEGORIA = 'CASQUETTE'"
+)
+
+const(
+	segmentNen = "GENERO = 'GARCON' && (TALLA = '3A' || TALLA = '4A' || TALLA = '5A' || TALLA = '6A')"
+	segmentNena = "GENERO = 'FILLE' && (TALLA = '3A' || TALLA = '4A' || TALLA = '5A' || TALLA = '6A')"
+	segmentBebeM = "GENERO = 'GARCON' && (TALLA = '0M' || TALLA = '1M' || TALLA = '3M' || TALLA = '6M' || TALLA = '9M' || TALLA = '12M' || TALLA = '18M' || TALLA = '2A')"
+	segmentBebeF = "GENERO = 'FILLE' && (TALLA = '0M' || TALLA = '1M' || TALLA = '3M' || TALLA = '6M' || TALLA = '9M' || TALLA = '12M' || TALLA = '18M' || TALLA = '2A')"
+	segmentJuniorM = "GENERO = 'GARCON' && (TALLA = '8A' || TALLA = '10A' || TALLA = '12A' || TALLA = '14A' || TALLA = '16A')"
+	segmentJuniorF = "GENERO = 'FILLE' && (TALLA = '8A' || TALLA = '10A' || TALLA = '12A' || TALLA = '14A' || TALLA = '16A')"
+)
+
+func comprovaCategoria(categoria string) string{
+	switch{
+		case categoria == "camises":
+			categoria = categoriaSamarretas
+		case categoria == "jaquetes":
+			categoria = categoriaJaquetes
+		case categoria == "jerseis":
+			categoria = categoriaJerseis
+		case categoria == "pantalons":
+			categoria = categoriaPantalons
+		case categoria == "faldilles":
+			categoria = categoriaFaldilles
+		case categoria == "vestits":
+			categoria = categoriaVestits
+		case categoria == "banyadors":
+			categoria = categoriaBanyadors
+		case categoria == "accessoris":
+			categoria = categoriaAccessoris
+	}
+	return categoria
+}
+
+func comprovaSegment(segment string) string{
+	mapCategoria := map[string]string{
+		"nen": segmentNen,
+		"nena": segmentNena,
+		"bebeM": segmentBebeM,
+		"bebeF": segmentBebeF,
+		"juniorM": segmentJuniorM,
+		"juniorF": segmentJuniorF,
+	}
+	return mapCategoria[segment]
+}
+
+func consultaSegment(w http.ResponseWriter, req *http.Request){
+	segment := mux.Vars(req)["segment"]
+	categoria := mux.Vars(req)["categoria"]
+	segmentQuery := comprovaSegment(segment)
+	categoriaQuery := comprovaCategoria(categoria)
+	//theCase := "lower" // "lower" default, "upper", camel
+	a, _ := gosqljson.QueryDbToMapJson(db, "lower", "SELECT ID_ARTICULO, CATEGORIA, TEMA, MARCA, TALLA,EAN13, CANTIDAD, PVP 
+										 			FROM stock 
+													WHERE (" + categoriaQuery + ") && "+ segmentQuery+" && IMATGE=1")
+	fmt.Fprintf(w, a)
+}
+
+func inserta(w http.ResponseWriter, req *http.Request){
+	codiPostal := req.PostFormValue("codiPostal");
+	adresa := req.PostFormValue("adresa");
+	descripcio := req.PostFormValue("descripcio");
+	preu := req.PostFormValue("preu");
+	telefon := req.PostFormValue("telefon");
+	nom := req.PostFormValue("nom");
+	poblacio := req.PostFormValue("poblacio");
+	correu := req.PostFormValue("correu");
+
+
+	stmt, err := db.Prepare("INSERT INTO factures SET CodiPostal=?,Adresa=?,Descripcio=?,Preu=?,Telefon=?,Nom=?,Poblacio=?,Correu=?")
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = stmt.Exec(codiPostal,adresa,descripcio,preu,telefon,nom,poblacio,correu)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+var db *sql.DB
+
+func main(){
+
+	var err error
+
+	db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/MAGMA_DB") // localhost
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = db.Ping()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+    r := mux.NewRouter()
+    r.HandleFunc("/{segment}/{categoria}", consultaSegment)
+    r.HandleFunc("/inserta", inserta)
+    http.Handle("/", r)
+
+	err = http.ListenAndServe(":8080",nil)
+	if err != nil{
+		log.Fatal(err)
+	}
+}
+
